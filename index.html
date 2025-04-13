@@ -82,7 +82,8 @@
     addMessage("AI", "Waiting for location fix...");
     return;
   }
-      const mode = document.getElementById('routingMode').value;
+      const selectedMode = document.getElementById('routingMode').value;
+const mode = selectedMode === 'driving' ? 'driving-car' : 'foot-walking';
       const [userLat, userLon] = userCoords;
       const url = "https://api.openrouteservice.org/v2/directions/" + mode + "/geojson";
       const body = JSON.stringify({ coordinates: [[userLon, userLat], [destLon, destLat]] });
