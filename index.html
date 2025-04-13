@@ -78,20 +78,28 @@
     );
 
     function routeTo(destLat, destLon) {
+  if (!userCoords) {
+    addMessage("AI", "Waiting for location fix...");
+    return;
+  }
       const mode = document.getElementById('routingMode').value;
       const [userLat, userLon] = userCoords;
       const url = `https://router.project-osrm.org/route/v1/${mode}/${userLon},${userLat};${destLon},${destLat}?overview=full&geometries=geojson`;
       fetch(url)
         .then(res => res.json())
         .then(data => {
-          if (data.code !== "Ok" || !data.routes.length) return addMessage("AI", "Route failed.");
+          console.log("Route response:", data);
+          if (data.code !== "Ok" || !data.routes.length) {
+            console.warn("Invalid route data:", data);
+            return addMessage("AI", "Route failed.");
+          }
           const route = data.routes[0];
           const miles = (route.distance / 1609.34).toFixed(2);
           const mins = Math.round(route.duration / 60);
           const hours = Math.floor(mins / 60);
           const duration = hours ? `${hours}h ${mins % 60}m` : `${mins} minutes`;
           if (routeLayer) map.removeLayer(routeLayer);
-          routeLayer = L.geoJSON(route.geometry).addTo(map);
+          routeLayer = L.geoJSON(route.geometry, { style: { color: '#ff0000' } }).addTo(map);
           map.fitBounds(routeLayer.getBounds());
           addMessage("AI", `Route (${mode}): ${miles} miles, ${duration}`);
         });
