@@ -127,7 +127,8 @@ const mode = selectedMode === 'driving' ? 'driving-car' : 'foot-walking';
         this.value = "";
         const [userLat, userLon] = userCoords;
         const global = document.getElementById('globalSearch').checked;
-        const mode = document.getElementById('routingMode').value;
+const selectedMode = document.getElementById('routingMode').value;
+const mode = selectedMode === 'driving' ? 'driving-car' : 'foot-walking';
         const endpoint = global
           ? `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15`
           : `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15&viewbox=${userLon-0.2},${userLat-0.2},${userLon+0.2},${userLat+0.2}&bounded=1`;
