@@ -100,7 +100,7 @@
           const hours = Math.floor(mins / 60);
           const duration = hours ? `${hours}h ${mins % 60}m` : `${mins} minutes`;
           if (routeLayer) map.removeLayer(routeLayer);
-          routeLayer = L.geoJSON(route.geometry$1).addTo(map);
+          routeLayer = L.geoJSON(route.geometry).addTo(map);
           map.fitBounds(routeLayer.getBounds());
           addMessage("AI", `Route (${mode}): ${miles} miles, ${duration}`);
         });
@@ -153,8 +153,8 @@
               const valid = responses.filter(r => r && r.data && r.data.features && r.data.features.length);
               if (!valid.length) return addMessage("AI", "No valid routes found.");
               valid.sort((a, b) => {
-                const distA = a.data.routes[0].distance;
-                const distB = b.data.routes[0].distance;
+                const distA = a.data.features[0].properties.summary.distance;
+                const distB = b.data.features[0].properties.summary.distance;
                 return distA - distB;
               });
               const best = valid[0];
