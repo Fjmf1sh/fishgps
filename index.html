@@ -86,7 +86,14 @@
       const [userLat, userLon] = userCoords;
       const url = "https://api.openrouteservice.org/v2/directions/" + mode + "/geojson";
       const body = JSON.stringify({ coordinates: [[userLon, userLat], [destLon, destLat]] });
-      fetch(url)
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': '5b3ce3597851110001cf6248ea98874f4be743f19ec2722c848b8f79',
+          'Content-Type': 'application/json'
+        },
+        body
+      })
         .then(res => res.json())
         .then(data => {
           console.log("Route response:", data);
