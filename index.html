@@ -82,7 +82,7 @@
       fetch(url)
         .then(res => res.json())
         .then(data => {
-          if (data.code !== "Ok") return addMessage("AI", "Route failed.");
+          if (data.code !== "Ok" || !data.routes.length) return addMessage("AI", "Route failed.");
           const route = data.routes[0];
           const miles = (route.distance / 1609.34).toFixed(2);
           const mins = Math.round(route.duration / 60);
@@ -91,7 +91,7 @@
           if (routeLayer) map.removeLayer(routeLayer);
           routeLayer = L.geoJSON(route.geometry).addTo(map);
           map.fitBounds(routeLayer.getBounds());
-          addMessage("AI", `Route: ${miles} miles, ${duration}`);
+          addMessage("AI", `Route (${mode}): ${miles} miles, ${duration}`);
         });
     }
 
@@ -103,16 +103,45 @@
         this.value = "";
         const [lat, lon] = userCoords;
         const global = document.getElementById('globalSearch').checked;
+        const mode = document.getElementById('routingMode').value;
         const endpoint = global
-          ? `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
-          : `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&viewbox=${lon-0.2},${lat+0.2},${lon+0.2},${lat-0.2}&bounded=1`;
+          ? `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`
+          : `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${lon-0.2},${lat+0.2},${lon+0.2},${lat-0.2}&bounded=1`;
 
         fetch(endpoint)
           .then(res => res.json())
           .then(results => {
-            if (results.length === 0) return addMessage("AI", "No location found.");
-            const place = results[0];
-            routeTo(parseFloat(place.lat), parseFloat(place.lon));
+            if (!results.length) return addMessage("AI", "No location found.");
+            const [startLat, startLon] = userCoords;
+            let shortest = null;
+            let completed = 0;
+
+            results.forEach(place => {
+              const destLat = parseFloat(place.lat);
+              const destLon = parseFloat(place.lon);
+              const url = `https://router.project-osrm.org/route/v1/${mode}/${startLon},${startLon};${destLon},${destLat}?overview=full&geometries=geojson`;
+              fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                  completed++;
+                  if (data.code === "Ok" && data.routes.length) {
+                    const route = data.routes[0];
+                    if (!shortest || route.duration < shortest.route.duration) {
+                      shortest = { route, dest: [destLat, destLon] };
+                    }
+                  }
+                  if (completed === results.length && shortest) {
+                    const miles = (shortest.route.distance / 1609.34).toFixed(2);
+                    const mins = Math.round(shortest.route.duration / 60);
+                    const hours = Math.floor(mins / 60);
+                    const duration = hours ? `${hours}h ${mins % 60}m` : `${mins} minutes`;
+                    if (routeLayer) map.removeLayer(routeLayer);
+                    routeLayer = L.geoJSON(shortest.route.geometry).addTo(map);
+                    map.fitBounds(routeLayer.getBounds());
+                    addMessage("AI", `Fastest (${mode}): ${miles} miles, ${duration}`);
+                  }
+                });
+            });
           });
       }
     });
