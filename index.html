@@ -1,65 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Minimal AI GPS Assistant</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" crossorigin=""/>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      background: #121212;
-      color: #e0e0e0;
-    }
-    #map {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 1;
-    }
-    #assistant {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.8);
-      z-index: 2;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-    }
-    #messages {
-      max-height: 150px;
-      overflow-y: auto;
-      font-size: 0.9rem;
-    }
-    #inputArea {
-      display: flex;
-      margin-top: 10px;
-      align-items: center;
-    }
-    #userInput {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      outline: none;
-      font-size: 1rem;
-      border-radius: 3px;
-    }
-    #globalToggle {
-      margin-left: 10px;
-      display: flex;
-      align-items: center;
-      font-size: 0.9rem;
-    }
-    #globalToggle input {
-      margin-right: 5px;
-    }
+    html, body { margin: 0; padding: 0; height: 100vh; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; background: #121212; color: #e0e0e0; }
+    #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
+    #assistant { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 2; padding: 10px; display: flex; flex-direction: column; }
+    #messages { max-height: 150px; overflow-y: auto; font-size: 0.9rem; }
+    #inputArea { display: flex; margin-top: 10px; align-items: center; }
+    #userInput { flex: 1; padding: 10px; border: none; outline: none; font-size: 1rem; border-radius: 3px; }
+    #globalToggle { margin-left: 10px; display: flex; align-items: center; font-size: 0.9rem; }
+    #globalToggle input { margin-right: 5px; }
   </style>
 </head>
 <body>
@@ -67,9 +21,9 @@
   <div id="assistant">
     <div id="messages"><strong>AI Assistant:</strong> Type a destination</div>
     <div id="inputArea">
-      <input type="text" id="userInput" placeholder="e.g., Starbucks, gas station" />
+      <input type="text" id="userInput" placeholder="e.g., McDonald's" />
       <div id="globalToggle">
-        <input type="checkbox" id="globalSearch" />
+        <input type="checkbox" id="globalSearch"/>
         <label for="globalSearch">Global Search</label>
       </div>
     </div>
@@ -80,7 +34,7 @@
     let userCoords = null;
     function initMap(lat, lon) {
       map = L.map('map').setView([lat, lon], 14);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
       userMarker = L.marker([lat, lon]).addTo(map).bindPopup("You are here").openPopup();
       navigator.geolocation.watchPosition(
         pos => {
@@ -93,22 +47,12 @@
       );
     }
     navigator.geolocation.getCurrentPosition(
-      position => {
-        const { latitude, longitude } = position.coords;
-        userCoords = [latitude, longitude];
-        initMap(latitude, longitude);
-      },
-      err => {
-        alert("GPS denied. Using default location.");
-        userCoords = [0, 0];
-        initMap(0, 0);
-      }
+      position => { const { latitude, longitude } = position.coords; userCoords = [latitude, longitude]; initMap(latitude, longitude); },
+      err => { alert("GPS denied. Using default location."); userCoords = [0, 0]; initMap(0, 0); }
     );
     const userInput = document.getElementById('userInput');
     const globalSearchCheckbox = document.getElementById('globalSearch');
-    userInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') processQuery();
-    });
+    userInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') processQuery(); });
     function processQuery() {
       const query = userInput.value.trim();
       if (!query) return;
@@ -131,7 +75,7 @@
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                 Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
                 Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       return R * c;
     }
     function handleSearch(query) {
@@ -140,25 +84,17 @@
       const [lat, lon] = userCoords;
       let apiUrl;
       if (globalSearchCheckbox.checked) {
-        apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+        apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`;
       } else {
         const viewbox = `${lon-0.2},${lat+0.2},${lon+0.2},${lat-0.2}`;
-        apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${viewbox}&bounded=1`;
+        apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&viewbox=${viewbox}&bounded=1`;
       }
       fetch(apiUrl)
         .then(response => response.json())
         .then(results => {
-          if (results.length === 0) {
-            addMessage("AI", "Couldn't find that location.");
-            return;
-          }
-          let bestResult = results[0];
-          let bestDistance = haversineDistance(userCoords[0], userCoords[1], parseFloat(bestResult.lat), parseFloat(bestResult.lon));
-          for (let i = 1; i < results.length; i++) {
-            const curr = results[i];
-            const d = haversineDistance(userCoords[0], userCoords[1], parseFloat(curr.lat), parseFloat(curr.lon));
-            if (d < bestDistance) { bestDistance = d; bestResult = curr; }
-          }
+          if (results.length === 0) { addMessage("AI", "Couldn't find that location."); return; }
+          results.sort((a, b) => haversineDistance(userCoords[0], userCoords[1], parseFloat(a.lat), parseFloat(a.lon)) - haversineDistance(userCoords[0], userCoords[1], parseFloat(b.lat), parseFloat(b.lon)));
+          const bestResult = results[0];
           const destLat = parseFloat(bestResult.lat);
           const destLon = parseFloat(bestResult.lon);
           addMessage("AI", `Found: ${bestResult.display_name}. Routing now...`);
@@ -172,23 +108,14 @@
       fetch(routeURL)
         .then(res => res.json())
         .then(data => {
-          if (data.code !== "Ok") {
-            addMessage("AI", "Routing failed.");
-            return;
-          }
+          if (data.code !== "Ok") { addMessage("AI", "Routing failed."); return; }
           const routeData = data.routes[0];
           const route = routeData.geometry;
-          const distanceMeters = routeData.distance;
-          const distanceMiles = (distanceMeters / 1609.34).toFixed(2);
-          const durationSeconds = routeData.duration;
-          const totalMinutes = Math.round(durationSeconds / 60);
-          let durationText;
-          if (totalMinutes >= 60) {
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            durationText = `${hours} hour${hours > 1 ? 's' : ''}`;
-            if (minutes > 0) { durationText += ` and ${minutes} minute${minutes > 1 ? 's' : ''}`; }
-          } else { durationText = `${totalMinutes} minute${totalMinutes === 1 ? '' : 's'}`; }
+          const distanceMiles = (routeData.distance / 1609.34).toFixed(2);
+          const totalMinutes = Math.round(routeData.duration / 60);
+          let durationText = totalMinutes >= 60 ?
+            `${Math.floor(totalMinutes / 60)} hour${Math.floor(totalMinutes/60) > 1 ? 's' : ''}${totalMinutes % 60 > 0 ? ' and ' + (totalMinutes % 60) + ' minute' + (totalMinutes % 60 > 1 ? 's' : '') : ''}` :
+            `${totalMinutes} minute${totalMinutes === 1 ? '' : 's'}`;
           if (routeLayer) { map.removeLayer(routeLayer); }
           routeLayer = L.geoJSON(route).addTo(map);
           map.fitBounds(routeLayer.getBounds());
