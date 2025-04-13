@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI GPS Assistant with Global Search Option</title>
-  <!-- Leaflet CSS (integrity attributes removed) -->
+  <title>AI GPS Assistant with Route Details</title>
+  <!-- Load Leaflet CSS without integrity attributes -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" crossorigin=""/>
   <style>
     html, body { margin: 0; padding: 0; height: 100vh; }
@@ -32,19 +32,17 @@
   </div>
 </div>
 
-<!-- Leaflet JS (integrity attributes removed) -->
+<!-- Load Leaflet JS without integrity attributes -->
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" crossorigin=""></script>
 <script>
   let map, userMarker, routeLayer;
   let userCoords = null;
 
-  // Initialize the map using the user's location
+  // Initialize the map and update user's marker continuously
   function initMap(lat, lon) {
     map = L.map('map').setView([lat, lon], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     userMarker = L.marker([lat, lon]).addTo(map).bindPopup("You are here").openPopup();
-
-    // Continuously update the user's location
     navigator.geolocation.watchPosition(
             pos => {
               const { latitude, longitude } = pos.coords;
@@ -56,7 +54,7 @@
     );
   }
 
-  // Get the user's initial location, or use a default if permission is denied
+  // Get the initial GPS location (or use default if denied)
   navigator.geolocation.getCurrentPosition(
           position => {
             const { latitude, longitude } = position.coords;
@@ -70,7 +68,7 @@
           }
   );
 
-  // Process search input on Enter key
+  // Process user queries on 'Enter'
   const userInput = document.getElementById('userInput');
   const globalSearchCheckbox = document.getElementById('globalSearch');
   userInput.addEventListener('keypress', function(e) {
@@ -87,6 +85,7 @@
     handleSearch(query);
   }
 
+  // Append messages to the chat window
   function addMessage(sender, text) {
     const messagesDiv = document.getElementById('messages');
     const msgElem = document.createElement('div');
@@ -95,7 +94,20 @@
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 
-  // Perform the search using the Nominatim API
+  // Haversine formula to compute distance between two coordinates (in km)
+  function haversineDistance(lat1, lon1, lat2, lon2) {
+    function toRad(x) { return x * Math.PI / 180; }
+    const R = 6371; // Earth's radius in km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  // Handle the search through Nominatim API
   function handleSearch(query) {
     if (!userCoords) {
       addMessage("AI", "Waiting for GPS...");
@@ -106,12 +118,10 @@
 
     let apiUrl;
     if (globalSearchCheckbox.checked) {
-      // Global search: No viewbox restrictions.
-      apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+      apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
     } else {
-      // Local search: Restrict results to a larger local area.
-      const viewbox = `${lon - 0.2},${lat + 0.2},${lon + 0.2},${lat - 0.2}`;
-      apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&viewbox=${viewbox}&bounded=1`;
+      const viewbox = `${lon-0.2},${lat+0.2},${lon+0.2},${lat-0.2}`;
+      apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${viewbox}&bounded=1`;
     }
 
     fetch(apiUrl)
@@ -121,10 +131,20 @@
                 addMessage("AI", "Couldn't find that location.");
                 return;
               }
-              const dest = results[0];
-              const destLat = parseFloat(dest.lat);
-              const destLon = parseFloat(dest.lon);
-              addMessage("AI", `Found: ${dest.display_name}. Routing now...`);
+              // Pick the closest result (if multiple returned)
+              let bestResult = results[0];
+              let bestDistance = haversineDistance(userCoords[0], userCoords[1], parseFloat(bestResult.lat), parseFloat(bestResult.lon));
+              for (let i = 1; i < results.length; i++) {
+                const currentResult = results[i];
+                const d = haversineDistance(userCoords[0], userCoords[1], parseFloat(currentResult.lat), parseFloat(currentResult.lon));
+                if (d < bestDistance) {
+                  bestDistance = d;
+                  bestResult = currentResult;
+                }
+              }
+              const destLat = parseFloat(bestResult.lat);
+              const destLon = parseFloat(bestResult.lon);
+              addMessage("AI", `Found: ${bestResult.display_name}. Routing now...`);
               routeTo(destLat, destLon);
             })
             .catch(err => {
@@ -133,10 +153,11 @@
             });
   }
 
-  // Draw the route using the OSRM API (walking profile)
+  // Fetch route from OSRM and display route details
   function routeTo(destLat, destLon) {
     const [startLat, startLon] = userCoords;
     const routeURL = `https://router.project-osrm.org/route/v1/walking/${startLon},${startLat};${destLon},${destLat}?overview=full&geometries=geojson`;
+
     fetch(routeURL)
             .then(res => res.json())
             .then(data => {
@@ -144,13 +165,17 @@
                 addMessage("AI", "Routing failed.");
                 return;
               }
-              const route = data.routes[0].geometry;
-              if (routeLayer) {
-                map.removeLayer(routeLayer);
-              }
+              const routeData = data.routes[0];
+              const route = routeData.geometry;
+              const distanceMeters = routeData.distance; // in meters
+              const durationSeconds = routeData.duration; // in seconds
+              const distanceKm = (distanceMeters / 1000).toFixed(2);
+              const durationMinutes = Math.round(durationSeconds / 60);
+
+              if (routeLayer) { map.removeLayer(routeLayer); }
               routeLayer = L.geoJSON(route).addTo(map);
               map.fitBounds(routeLayer.getBounds());
-              addMessage("AI", "Route displayed on map.");
+              addMessage("AI", `Route: ${distanceKm} km, approx. ${durationMinutes} minutes. Route displayed on map.`);
             })
             .catch(err => {
               console.error(err);
