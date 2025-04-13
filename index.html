@@ -3,37 +3,48 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI GPS Assistant</title>
-  <!-- Leaflet CSS (integrity attribute removed) -->
+  <title>AI GPS Assistant with Global Search Option</title>
+  <!-- Leaflet CSS (integrity attributes removed) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" crossorigin=""/>
   <style>
     html, body { margin: 0; padding: 0; height: 100vh; }
-    #map { height: 80vh; width: 100%; }
-    #assistant { height: 20vh; overflow-y: auto; background: #111; color: #0f0; padding: 10px; }
-    #input { width: 100%; padding: 10px; box-sizing: border-box; }
+    #map { height: 60vh; width: 100%; }
+    #assistant { height: 40vh; overflow-y: auto; background: #111; color: #0f0; padding: 10px; }
+    #inputArea {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 10px;
+    }
+    #userInput { width: 100%; padding: 10px; box-sizing: border-box; }
+    #globalToggle { margin-top: 5px; }
   </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="assistant">
-  <div id="messages"><strong>AI Assistant:</strong> Type a destination or "home"</div>
+  <div id="messages"><strong>AI Assistant:</strong> Type a destination</div>
+  <div id="inputArea">
+    <input type="text" id="userInput" placeholder="e.g., Starbucks, gas station" />
+    <label id="globalToggle">
+      <input type="checkbox" id="globalSearch" /> Global Search
+    </label>
+  </div>
 </div>
-<input type="text" id="input" placeholder="e.g., Starbucks, gas station, home"/>
 
-<!-- Leaflet JS (integrity attribute removed) -->
+<!-- Leaflet JS (integrity attributes removed) -->
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" crossorigin=""></script>
 <script>
   let map, userMarker, routeLayer;
   let userCoords = null;
-  const homeCoords = [33.6267376, -117.9122829];
 
-  // Initialize the map and add a marker for the user’s location
+  // Initialize the map using the user's location
   function initMap(lat, lon) {
     map = L.map('map').setView([lat, lon], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     userMarker = L.marker([lat, lon]).addTo(map).bindPopup("You are here").openPopup();
 
-    // Update user location continuously
+    // Continuously update the user's location
     navigator.geolocation.watchPosition(
             pos => {
               const { latitude, longitude } = pos.coords;
@@ -45,7 +56,7 @@
     );
   }
 
-  // Get current position or use default if not allowed
+  // Get the user's initial location, or use a default if permission is denied
   navigator.geolocation.getCurrentPosition(
           position => {
             const { latitude, longitude } = position.coords;
@@ -54,62 +65,75 @@
           },
           err => {
             alert("GPS denied. Using default location.");
-            userCoords = [...homeCoords];
-            initMap(...homeCoords);
+            userCoords = [0, 0];
+            initMap(0, 0);
           }
   );
 
-  // Chat assistant UI
-  const input = document.getElementById('input');
-  input.addEventListener('keypress', function(e) {
+  // Process search input on Enter key
+  const userInput = document.getElementById('userInput');
+  const globalSearchCheckbox = document.getElementById('globalSearch');
+  userInput.addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
-      const query = input.value.trim();
-      if (!query) return;
-      addMessage("User", query);
-      input.value = "";
-      if (query.toLowerCase() === "home") {
-        addMessage("AI", "Heading home...");
-        routeTo(homeCoords[0], homeCoords[1]);
-      } else {
-        handleSearch(query);
-      }
+      processQuery();
     }
   });
 
+  function processQuery() {
+    const query = userInput.value.trim();
+    if (!query) return;
+    addMessage("User", query);
+    userInput.value = "";
+    handleSearch(query);
+  }
+
   function addMessage(sender, text) {
     const messagesDiv = document.getElementById('messages');
-    const msg = document.createElement('div');
-    msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
-    messagesDiv.appendChild(msg);
+    const msgElem = document.createElement('div');
+    msgElem.innerHTML = `<strong>${sender}:</strong> ${text}`;
+    messagesDiv.appendChild(msgElem);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 
-  // Perform a nearby search using Nominatim
+  // Perform the search using the Nominatim API
   function handleSearch(query) {
     if (!userCoords) {
       addMessage("AI", "Waiting for GPS...");
       return;
     }
-    addMessage("AI", `Searching nearby for "${query}"...`);
+    addMessage("AI", `Searching for "${query}"...`);
     const [lat, lon] = userCoords;
-    const viewbox = `${lon-0.05},${lat+0.05},${lon+0.05},${lat-0.05}`;
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&viewbox=${viewbox}&bounded=1`)
+
+    let apiUrl;
+    if (globalSearchCheckbox.checked) {
+      // Global search: No viewbox restrictions.
+      apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+    } else {
+      // Local search: Restrict results to a larger local area.
+      const viewbox = `${lon - 0.2},${lat + 0.2},${lon + 0.2},${lat - 0.2}`;
+      apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&viewbox=${viewbox}&bounded=1`;
+    }
+
+    fetch(apiUrl)
             .then(response => response.json())
             .then(results => {
               if (results.length === 0) {
-                addMessage("AI", "Couldn't find anything nearby.");
+                addMessage("AI", "Couldn't find that location.");
                 return;
               }
               const dest = results[0];
               const destLat = parseFloat(dest.lat);
               const destLon = parseFloat(dest.lon);
-              addMessage("AI", `Found ${dest.display_name}. Routing now...`);
+              addMessage("AI", `Found: ${dest.display_name}. Routing now...`);
               routeTo(destLat, destLon);
             })
-            .catch(err => { console.error(err); addMessage("AI", "Error during search."); });
+            .catch(err => {
+              console.error(err);
+              addMessage("AI", "Error during search.");
+            });
   }
 
-  // Draw route using OSRM (walking profile)
+  // Draw the route using the OSRM API (walking profile)
   function routeTo(destLat, destLon) {
     const [startLat, startLon] = userCoords;
     const routeURL = `https://router.project-osrm.org/route/v1/walking/${startLon},${startLat};${destLon},${destLat}?overview=full&geometries=geojson`;
@@ -121,12 +145,17 @@
                 return;
               }
               const route = data.routes[0].geometry;
-              if (routeLayer) map.removeLayer(routeLayer);
+              if (routeLayer) {
+                map.removeLayer(routeLayer);
+              }
               routeLayer = L.geoJSON(route).addTo(map);
               map.fitBounds(routeLayer.getBounds());
-              addMessage("AI", "Route is now on the map.");
+              addMessage("AI", "Route displayed on map.");
             })
-            .catch(err => { console.error(err); addMessage("AI", "Error during routing."); });
+            .catch(err => {
+              console.error(err);
+              addMessage("AI", "Error during routing.");
+            });
   }
 </script>
 </body>
