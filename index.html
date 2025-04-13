@@ -132,14 +132,15 @@
             const promises = results.map(place => {
               const destLat = parseFloat(place.lat);
               const destLon = parseFloat(place.lon);
-              const url = `https://router.project-osrm.org/route/v1/${mode}/${userLon},${userLat};${destLon},${destLat}?overview=full&geometries=geojson`;
-              return fetch(url, {
+              const orsUrl = `https://api.openrouteservice.org/v2/directions/${mode}/geojson`;
+              const orsBody = JSON.stringify({ coordinates: [[userLon, userLat], [destLon, destLat]] });
+              return fetch(orsUrl, {
                 method: 'POST',
                 headers: {
                   'Authorization': '5b3ce3597851110001cf6248ea98874f4be743f19ec2722c848b8f79',
                   'Content-Type': 'application/json'
                 },
-                body
+                body: orsBody
               }).then(res => res.json())
                 .then(data => ({ place, data }))
                 .catch(err => {
@@ -149,7 +150,7 @@
             });
 
             Promise.all(promises).then(responses => {
-              const valid = responses.filter(r => r && r.data.code === "Ok" && r.data.routes.length);
+              const valid = responses.filter(r => r && r.data && r.data.features && r.data.features.length);
               if (!valid.length) return addMessage("AI", "No valid routes found.");
               valid.sort((a, b) => {
                 const distA = a.data.routes[0].distance;
@@ -157,9 +158,9 @@
                 return distA - distB;
               });
               const best = valid[0];
-              const route = best.data.routes[0];
-              const miles = (route.distance / 1609.34).toFixed(2);
-              const mins = Math.round(route.duration / 60);
+              const route = best.data.features[0];
+              const miles = (route.properties.summary.distance / 1609.34).toFixed(2);
+              const mins = Math.round(route.properties.summary.duration / 60);
               const hours = Math.floor(mins / 60);
               const duration = hours ? `${hours}h ${mins % 60}m` : `${mins} minutes`;
               if (routeLayer) map.removeLayer(routeLayer);
