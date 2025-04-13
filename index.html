@@ -84,22 +84,23 @@
   }
       const mode = document.getElementById('routingMode').value;
       const [userLat, userLon] = userCoords;
-      const url = `https://router.project-osrm.org/route/v1/${mode}/${userLon},${userLat};${destLon},${destLat}?overview=full&geometries=geojson`;
+      const url = "https://api.openrouteservice.org/v2/directions/" + mode + "/geojson";
+      const body = JSON.stringify({ coordinates: [[userLon, userLat], [destLon, destLat]] });
       fetch(url)
         .then(res => res.json())
         .then(data => {
           console.log("Route response:", data);
-          if (data.code !== "Ok" || !data.routes.length) {
+          if (!data || !data.features || !data.features.length) {
             console.warn("Invalid route data:", data);
             return addMessage("AI", "Route failed.");
           }
-          const route = data.routes[0];
-          const miles = (route.distance / 1609.34).toFixed(2);
-          const mins = Math.round(route.duration / 60);
+          const route = data.features[0];
+          const miles = (route.properties.summary.distance / 1609.34).toFixed(2);
+          const mins = Math.round(route.properties.summary.duration / 60);
           const hours = Math.floor(mins / 60);
           const duration = hours ? `${hours}h ${mins % 60}m` : `${mins} minutes`;
           if (routeLayer) map.removeLayer(routeLayer);
-          routeLayer = L.geoJSON(route.geometry, { style: { color: '#ff0000' } }).addTo(map);
+          routeLayer = L.geoJSON(route.geometry$1).addTo(map);
           map.fitBounds(routeLayer.getBounds());
           addMessage("AI", `Route (${mode}): ${miles} miles, ${duration}`);
         });
@@ -132,8 +133,14 @@
               const destLat = parseFloat(place.lat);
               const destLon = parseFloat(place.lon);
               const url = `https://router.project-osrm.org/route/v1/${mode}/${userLon},${userLat};${destLon},${destLat}?overview=full&geometries=geojson`;
-              return fetch(url)
-                .then(res => res.json())
+              return fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Authorization': '5b3ce3597851110001cf6248ea98874f4be743f19ec2722c848b8f79',
+                  'Content-Type': 'application/json'
+                },
+                body
+              }).then(res => res.json())
                 .then(data => ({ place, data }))
                 .catch(err => {
                   console.error("Route fetch error for:", place.display_name, err);
